@@ -4,10 +4,13 @@ import userModels from "../models/userModels.js";
 // Protected routes token based
 export const requireSignIn = async(req,res,next) => {
     try{
+        console.log("hi");
         const decode = JWT.verify(req.headers.authorization, process.env.JWT_SECRET);
+        console.log(decode );
         next();
         req.user=decode;
-    } catch(error) {
+    }
+    catch(error) {
         console.log(error);
     }
 };
