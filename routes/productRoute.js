@@ -12,7 +12,7 @@ const router = express.Router()
 router.post('/create-product', requireSignIn, ExpressFormidable(), isAdmin, createProductController)
 
 //update products
-router.post('/update-product', requireSignIn, ExpressFormidable(), isAdmin, updateProductController)
+router.put('/update-product/:pid', requireSignIn, ExpressFormidable(), isAdmin, updateProductController)
 
 //get products
 router.get("/get-product", getProductController)
