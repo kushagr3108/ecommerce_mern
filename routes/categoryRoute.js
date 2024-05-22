@@ -20,4 +20,6 @@ router.get("/single-category/:slug", singleCategoryController)
 //Delete Category
 router.delete("/delete-category/:id", requireSignIn, isAdmin, deleteCategoryController)
 
+
+
 export default router

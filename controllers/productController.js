@@ -1,6 +1,22 @@
 import productModels from "../models/productModels.js"
+import categoryModels from "../models/categoryModels.js"
 import fs from 'fs';
 import slugify from 'slugify'
+import braintree from "braintree";
+import orderModels from "../models/orderModels.js";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+//payment gateway
+var gateway = new braintree.BraintreeGateway({
+  environment: braintree.Environment.Sandbox,
+  merchantId: process.env.BRAINTREE_MERCHANT_ID,
+  publicKey: process.env.BRAINTREE_PUBLIC_KEY,
+  privateKey: process.env.BRAINTREE_PRIVATE_KEY,
+});
+
+
 
 //Creating product
 export const createProductController = async(req,res) =>{
@@ -96,6 +112,7 @@ export const getProductController = async (req, res) => {
   //get product photo
   export const productPhotoController = async (req, res) => {
     try {
+      const { pid } = req.params;
       const product = await productModels.findById(req.params.pid).select("photo");
       if (product.photo.data) {
         res.set("Content-type", product.photo.contentType);
@@ -135,7 +152,7 @@ export const getProductController = async (req, res) => {
       const { name, description, price, category, quantity, shipping } =
         req.fields;
       const { photo } = req.files;
-      //alidation
+      //Validation
       switch (true) {
         case !name:
           return res.status(500).send({ error: "Name is Required" });
@@ -223,7 +240,7 @@ export const getProductController = async (req, res) => {
   // product list base on page
 export const productListController = async (req, res) => {
   try {
-    const perPage = 2;
+    const perPage = 3;
     const page = req.params.page ? req.params.page : 1;
     const products = await productModels
       .find({})
@@ -265,5 +282,100 @@ export const searchProductController = async (req, res) => {
       message: "Error In Search Product API",
       error,
     });
+  }
+};
+
+//similar product
+export const relatedProductController = async(req,res) => {
+  try {
+    const { pid, cid } = req.params;
+    const products = await productModels
+      .find({
+        category: cid,
+        _id: { $ne: pid },
+      })
+      .select("-photo")
+      .limit(3)
+      .populate("category");
+    res.status(200).send({
+      success: true,
+      products,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(400).send({
+      success: false,
+      message: "error while geting related product",
+      error,
+    });
+  }
+};
+
+//get prod by cat
+export const productCategoryController = async(req,res) => {
+  try{
+    const category = await categoryModels.findOne({slug:req.params.slug});
+    const products = await productModels.find({category}).populate("category");
+    res.status(200).send({
+      success: true,
+      category,
+      products,
+    })
+  } catch(error){
+    console.log(error)
+    res.status(400).send({
+      success: false,
+      message: "Error while getting categories",
+      error,
+
+    })
+  }
+};
+//token
+export const braintreeTokenController = async (req, res) => {
+  try {
+    gateway.clientToken.generate({}, function (err, response) {
+      if (err) {
+        res.status(500).send(err);
+      } else {
+        res.send(response);
+      }
+    });
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+//payment
+export const brainTreePaymentController = async (req, res) => {
+  try {
+    const { nonce, cart } = req.body;
+    let total = 0;
+    cart.map((i) => {
+      total += i.price;
+    });
+    let newTransaction = gateway.transaction.sale(
+      {
+        amount: total,
+        paymentMethodNonce: nonce,
+        options: {
+          submitForSettlement: true,
+        },
+      },
+      function (error, result) {
+        if (result) {
+          const order = new orderModels({
+            products: cart,
+            payment: result,
+            buyer: req.user._id,
+          }).save();
+          res.json({ ok: true });
+        } else {
+          res.status(500).send(error);
+        }
+      }
+    );
+  } catch (error) {
+    console.log(error);
   }
 };
